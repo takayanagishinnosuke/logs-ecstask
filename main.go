@@ -77,13 +77,7 @@ func main() {
 }
 
 // タスクのログとサービスイベントを取得し、Timeline に追加
-func runTrace(
-	ctx context.Context,
-	ecsClient *ecs.Client,
-	logsClient *cloudwatchlogs.Client,
-	cluster string,
-	taskID string,
-) error {
+func runTrace(ctx context.Context, ecsClient *ecs.Client, logsClient *cloudwatchlogs.Client, cluster string, taskID string) error {
 	processor := NewTaskProcessor(ecsClient, logsClient, cluster)
 	timeline := &Timeline{}
 
@@ -122,14 +116,14 @@ func runTrace(
 		Foreground(lipgloss.Color("39")).
 		Bold(true)
 
-	timeline.Print()
-
 	fmt.Printf("%s %s\n",
 		taskStyle.Render("Task ARN:"),
 		taskMessageStyle.Render(taskArn))
 	fmt.Printf("%s %s\n\n",
 		taskStyle.Render("Last Status:"),
 		taskMessageStyle.Render(aws.ToString(task.LastStatus)))
+
+	timeline.Print()
 
 	return nil
 }

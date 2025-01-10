@@ -8,6 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.45.1
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.53.2
 	github.com/charmbracelet/lipgloss v1.0.0
+	golang.org/x/term v0.28.0
 )
 
 require (
@@ -31,5 +32,5 @@ require (
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/muesli/termenv v0.15.2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	golang.org/x/sys v0.19.0 // indirect
+	golang.org/x/sys v0.29.0 // indirect
 )
