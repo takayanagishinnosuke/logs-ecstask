@@ -10,22 +10,25 @@ import (
 
 var (
 	timestampStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241")).
-			Width(25)
+			Foreground(lipgloss.Color("#f5f5f5")).
+			Width(25).MarginRight(2)
 
 	sourceStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("39")).
-			Width(15).
-			Bold(true)
+			Foreground(lipgloss.Color("#00bfff")).
+			Width(25)
+
+	taskMessageStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#f5f5f5"))
 
 	messageStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241")).BorderBottom(true).Padding(0, 1)
+			Foreground(lipgloss.Color("#f5f5f5")).
+			Width(45).
+			MarginBottom(2)
 
 	headerStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("39")).
+			Foreground(lipgloss.Color("#00bfff")).
 			Bold(true).
-			BorderStyle(lipgloss.RoundedBorder()).
-			Padding(0, 1)
+			Width(25).MarginRight(2).MarginBottom(3)
 )
 
 type Timeline struct {
@@ -50,8 +53,13 @@ func (tl *Timeline) Print() {
 		return tl.events[i].Timestamp.Before(tl.events[j].Timestamp)
 	})
 	// 出力
-	fmt.Println(headerStyle.Render("TIMELINE (Service Events & Logs)"))
-	fmt.Println()
+	headerLine := lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		headerStyle.Render("TIME"),
+		headerStyle.Render("Service Event"),
+		headerStyle.Render("Message"),
+	)
+	fmt.Println(headerLine)
 
 	for _, e := range tl.events {
 		line := lipgloss.JoinHorizontal(

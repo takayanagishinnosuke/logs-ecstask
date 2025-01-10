@@ -11,11 +11,33 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	"github.com/charmbracelet/lipgloss"
+)
+
+// スタイル定義
+var (
+	waitStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#808080"))
+
+	choiceStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#00ff00"))
+
+	nomberStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#00bfff"))
+
+	idStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#808080"))
+
+	aggregateStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#ffff00"))
+
+	errorStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#ff0000"))
 )
 
 // 対話式に ECS Cluster を選択する
 func chooseCluster(ctx context.Context, ecsClient *ecs.Client) (string, error) {
-	fmt.Println("Choice ECS Clusters...")
+	fmt.Println(waitStyle.Render("Listing ECS Clusters..."))
 
 	var clusters []string
 	var nextToken *string
@@ -41,33 +63,39 @@ func chooseCluster(ctx context.Context, ecsClient *ecs.Client) (string, error) {
 	// 取得したクラスターをソートして番号付け
 	sort.Strings(clusters)
 	if len(clusters) == 0 {
-		return "", fmt.Errorf("no ECS Clusters found")
+		return "", fmt.Errorf(errorStyle.Render("no clusters found"))
 	}
 
-	fmt.Println("Select a cluster:")
+	fmt.Println(choiceStyle.Render("Select a cluster:"))
 	for i, c := range clusters {
-		fmt.Printf("[%d] %s\n", i, c)
+		numberStr := fmt.Sprintf("[%d]", i)
+		line := fmt.Sprintf("%s %s",
+			nomberStyle.Render(numberStr),
+			idStyle.Render(c),
+		)
+		fmt.Println(line)
 	}
 
 	// 入力受付
 	var idx int
-	fmt.Print("Enter a number > ")
+	fmt.Print(choiceStyle.Render("Enter a number > "))
 	_, err := fmt.Scanln(&idx)
 	if err != nil {
 		return "", err
 	}
 	if idx < 0 || idx >= len(clusters) {
-		return "", fmt.Errorf("invalid index: %d", idx)
+		return "", fmt.Errorf(errorStyle.Render("invalid index"))
 	}
 
 	chosen := clusters[idx]
-	fmt.Printf("You chose: %s\n", chosen)
+	styledText := aggregateStyle.Render(fmt.Sprintf("You chose: %s\n", chosen))
+	fmt.Println(styledText)
 	return chosen, nil
 }
 
 // 対話式に ECS Task を選択する
 func chooseTask(ctx context.Context, ecsClient *ecs.Client, cluster string) (string, error) {
-	fmt.Printf("Listing Tasks in cluster: %s\n", cluster)
+	fmt.Println(waitStyle.Render("Listing Task..."))
 
 	// RUNNING, PENDING, STOPPED すべて取得
 	statuses := []ecsTypes.DesiredStatus{
@@ -76,7 +104,7 @@ func chooseTask(ctx context.Context, ecsClient *ecs.Client, cluster string) (str
 		ecsTypes.DesiredStatusStopped,
 	}
 
-	var tasks []string
+	var taskArns []string
 	for _, st := range statuses {
 		tlist, err := ecsClient.ListTasks(ctx, &ecs.ListTasksInput{
 			Cluster:       &cluster,
@@ -85,36 +113,73 @@ func chooseTask(ctx context.Context, ecsClient *ecs.Client, cluster string) (str
 		if err != nil {
 			return "", err
 		}
-		tasks = append(tasks, tlist.TaskArns...)
+		taskArns = append(taskArns, tlist.TaskArns...)
 	}
-	if len(tasks) == 0 {
-		return "", fmt.Errorf("no Tasks found in cluster %s", cluster)
-	}
-
-	// タスク ARN の末尾を表示用に格納
-	var taskIDs []string
-	for _, arn := range tasks {
-		taskIDs = append(taskIDs, arnToName(arn))
-	}
-	sort.Strings(taskIDs)
-
-	fmt.Println("Select a task:")
-	for i, tID := range taskIDs {
-		fmt.Printf("[%d] %s\n", i, tID)
+	if len(taskArns) == 0 {
+		errorText := errorStyle.Render("no Tasks found in cluster", cluster)
+		return "", fmt.Errorf(errorText)
 	}
 
-	var idx int
-	fmt.Print("Enter a number > ")
-	_, err := fmt.Scanln(&idx)
+	// DescribeTasks でタスクの詳細情報を取得
+	descOutput, err := ecsClient.DescribeTasks(ctx, &ecs.DescribeTasksInput{
+		Cluster: &cluster,
+		Tasks:   taskArns,
+	})
 	if err != nil {
 		return "", err
 	}
-	if idx < 0 || idx >= len(taskIDs) {
-		return "", fmt.Errorf("invalid index: %d", idx)
+
+	// タスクID とタスク定義名を格納する構造体
+	type TaskDisplay struct {
+		ID         string
+		Definition string
+		FullArn    string
+	}
+	var tasks []TaskDisplay
+
+	// 各タスクから情報を抽出
+	for _, task := range descOutput.Tasks {
+		id := arnToName(aws.ToString(task.TaskArn))
+		defName := ""
+		if task.TaskDefinitionArn != nil {
+			defArn := aws.ToString(task.TaskDefinitionArn)
+			defName = strings.Split(defArn, "task-definition/")[1]
+		}
+		tasks = append(tasks, TaskDisplay{
+			ID:         id,
+			Definition: defName,
+			FullArn:    aws.ToString(task.TaskArn),
+		})
 	}
 
-	chosen := taskIDs[idx]
-	fmt.Printf("You chose Task: %s\n", chosen)
+	sort.SliceStable(tasks, func(i, j int) bool {
+		return tasks[i].ID < tasks[j].ID
+	})
+
+	fmt.Println(choiceStyle.Render("Select a Task:"))
+	for i, t := range tasks {
+		numberStr := fmt.Sprintf("[%d]", i)
+		line := fmt.Sprintf("%s %s: %s",
+			nomberStyle.Render(numberStr),
+			idStyle.Render(t.ID),
+			idStyle.Render(t.Definition),
+		)
+		fmt.Printf("%s\n", line)
+	}
+
+	var idx int
+	fmt.Print(choiceStyle.Render("Enter a number > "))
+	_, err = fmt.Scanln(&idx)
+	if err != nil {
+		return "", err
+	}
+	if idx < 0 || idx >= len(tasks) {
+		return "", fmt.Errorf(errorStyle.Render("invalid index"))
+	}
+
+	chosen := tasks[idx].FullArn
+	aggregateText := aggregateStyle.Render("You chose Task:", tasks[idx].ID)
+	fmt.Println(aggregateText)
 	return chosen, nil
 }
 
@@ -130,7 +195,8 @@ func fetchServiceEvents(
 		return err
 	}
 	if len(out.Services) == 0 {
-		return fmt.Errorf("no services found for %s", serviceName)
+		errorText := errorStyle.Render("no services found for", serviceName)
+		return fmt.Errorf(errorText)
 	}
 	svc := out.Services[0]
 
@@ -150,17 +216,15 @@ func fetchCloudWatchLogsToTimeline(
 	group, stream, containerName string,
 	timeline *Timeline,
 ) error {
-	fmt.Printf("LogGroup: %s, LogStream: %s\n", group, stream)
-
 	input := &cloudwatchlogs.GetLogEventsInput{
 		LogGroupName:  &group,
 		LogStreamName: &stream,
-		StartFromHead: aws.Bool(true),
-		Limit:         aws.Int32(50),
+		StartFromHead: aws.Bool(false),
+		Limit:         aws.Int32(30),
 	}
 
-	// ここでは無限ループを避けるため、最大ループ回数を区切る
-	const maxIteration = 10
+	// APIを複数回呼び出す
+	const maxIteration = 3
 	iteration := 0
 	var nextToken *string
 
@@ -190,7 +254,7 @@ func fetchCloudWatchLogsToTimeline(
 
 		iteration++
 		if iteration >= maxIteration {
-			fmt.Println("Reached max iteration. Stop fetching logs.")
+			fmt.Println(aggregateStyle.Render("Reached max iteration"))
 			break
 		}
 	}

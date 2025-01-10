@@ -22,6 +22,12 @@ var (
 	taskInput    = flag.String("task", "", "ECS Task ID or ARN")
 )
 
+// スタイル定義
+var (
+	doneStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#00ff00"))
+)
+
 func main() {
 	flag.Parse()
 	ctx := context.Background()
@@ -67,7 +73,7 @@ func main() {
 		log.Fatalf("failed to trace logs: %v", err)
 	}
 
-	fmt.Println("Done.")
+	fmt.Println(doneStyle.Render("Done."))
 }
 
 // タスクのログとサービスイベントを取得し、Timeline に追加
@@ -116,14 +122,14 @@ func runTrace(
 		Foreground(lipgloss.Color("39")).
 		Bold(true)
 
+	timeline.Print()
+
 	fmt.Printf("%s %s\n",
 		taskStyle.Render("Task ARN:"),
-		messageStyle.Render(taskArn))
+		taskMessageStyle.Render(taskArn))
 	fmt.Printf("%s %s\n\n",
 		taskStyle.Render("Last Status:"),
-		messageStyle.Render(aws.ToString(task.LastStatus)))
-
-	timeline.Print()
+		taskMessageStyle.Render(aws.ToString(task.LastStatus)))
 
 	return nil
 }
