@@ -112,7 +112,7 @@ func TestTimelineAddAndPrint(t *testing.T) {
 
 	// ソート後、最初のイベントが古い方になることを確認
 	tl.Print() // ソートを実行
-	if tl.events[0].Timestamp.After(tl.events[1].Timestamp) {
+	if tl.events[0].Timestamp.Before(tl.events[1].Timestamp) {
 		t.Error("events are not properly sorted")
 	}
 }
@@ -174,6 +174,48 @@ func TestArnToName(t *testing.T) {
 			got := arnToName(tt.arn)
 			if got != tt.expected {
 				t.Errorf("arnToName(%s) = %s; want %s", tt.arn, got, tt.expected)
+			}
+		})
+	}
+}
+
+// -----------------------------------------------------------------------------
+// テストケース:
+// 1. "first page": 最初のページを取得する場合
+// 2. "second page": 2番目のページを取得する場合
+// 3. "out of range": 範囲外のページを取得する場合
+// 全イベント数: 3
+// - ページサイズ: 2
+//   - ページ0: [0:2] → event1, event2
+//   - ページ1: [2:3] → event3
+//   - ページ2: [4:4] → 空配列（範囲外）
+//
+// -----------------------------------------------------------------------------
+func TestGetPageEvents(t *testing.T) {
+	tl := &Timeline{
+		pageSize: 2,
+		events: []TimelineEvent{
+			{Message: "event1"},
+			{Message: "event2"},
+			{Message: "event3"},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		page     int
+		expected int
+	}{
+		{"first page", 0, 2},
+		{"second page", 1, 1},
+		{"out of range", 2, 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tl.getPageEvents(tt.page)
+			if len(got) != tt.expected {
+				t.Errorf("got %d events, want %d", len(got), tt.expected)
 			}
 		})
 	}

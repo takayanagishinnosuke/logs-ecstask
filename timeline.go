@@ -60,6 +60,9 @@ func (tl *Timeline) sortEvents() {
 // ページのイベントを取得
 func (tl *Timeline) getPageEvents(page int) []TimelineEvent {
 	start := page * tl.pageSize
+	if start >= len(tl.events) {
+		return []TimelineEvent{}
+	}
 	end := min(start+tl.pageSize, len(tl.events))
 	return tl.events[start:end]
 }
